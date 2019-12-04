@@ -1,39 +1,75 @@
-library(ggplot2)
 library(plyr) # dplyr
-library(tidyverse)
-library(grid)
-
+library(fmsb)
+require(reshape2)
 
 db = read.csv(file = "./data/subventions-accordees-et-refusees.csv", sep= ';')
 
-#on transforme notre dataset pour récupérer chaque domaine d'activité individuellement (un seul par ligne, on duplique les lignes qui en ont plusieurs)
-df <- db %>%
-  transform(Secteurs.d.activités.définies.par.l.association = strsplit((as.character(Secteurs.d.activités.définies.par.l.association)),";")) %>% unnest(Secteurs.d.activités.définies.par.l.association)
 
-#réorganisation du dataset en fonction des secteurs 
-db_sector = ddply(df, .(Secteurs.d.activités.définies.par.l.association), summarize, Tot_Subv=sum(Montant.voté), proportion_sector = 1)
+# Compute sums and ratio
+dbCountSummary = ddply(db, .(Direction), summarize, nbAccept=sum(Montant.voté!="0"), nbRefuse=sum(Montant.voté=="0"))
+dbCountSummary$ratio = dbCountSummary$nbAccept / (dbCountSummary$nbRefuse + dbCountSummary$nbAccept)
 
-#on détermine le montant total des subventions attribués à tous les secteurs et on l'ajoute au dataset
-total_subv = sum(db_sector$Tot_Subv)
+# Sort the dataframes
+dbCountSummary$totalSubvTraitees = dbCountSummary$nbAccept + dbCountSummary$nbRefuse
+dbCountAcceptOrdered = dbCountSummary[order(dbCountSummary$nbAccept),]
+dbCountRefuseOrdered = dbCountSummary[order(dbCountSummary$nbRefuse),]
+dbCountRatioOrdered = dbCountSummary[order(dbCountSummary$ratio),]
 
-db_sector$proportion_sector = db_sector$Tot_Subv / total_subv
+# Get nb best elements and max in each category
+nb = 10
+nbestAccept = tail(dbCountAcceptOrdered, n=nb)
+nbestRefuse = tail(dbCountRefuseOrdered, n=nb)
+nbestRatio = tail(dbCountRatioOrdered, n=nb)
+maxAccept = tail(nbestAccept, n=1)$nbAccept
+maxRefuse = tail(nbestRefuse, n=1)$nbRefuse
 
-#on enlève les secteurs à moins de 2,5%
-db_sector_filter <- db_sector %>% filter(proportion_sector >= 0.025)
+# Prepare each dataframe to be used by radarchart()
+## Accept
+printAcceptData = data.frame(nbestAccept$nbAccept) # Get column
+printAcceptData <- t(printAcceptData) # Transpose it
+colnames(printAcceptData) <- as.vector(nbestAccept$Direction) # Adds column names
+printAcceptData <- data.frame(printAcceptData)
+rownames(printAcceptData) <- c() # Remove row names
+# Adds max and min values in dataframe, as expected by radarchart()
+printAcceptData <- rbind(rep(maxAccept,nb), rep(0,nb), printAcceptData)
 
+## Refuse
+printRefuseData = data.frame(nbestRefuse$nbRefuse)
+printRefuseData <- t(printRefuseData)
+colnames(printRefuseData) <- as.vector(nbestRefuse$Direction)
+printRefuseData <- data.frame(printRefuseData)
+rownames(printRefuseData) <- c()
+printRefuseData <- rbind(rep(maxRefuse,nb), rep(0,nb), printRefuseData)
 
-#on rajoute la section "Autres" qui correspond à l'ensemble secteurs filtrés
-db_sector_pie <- rbind(db_sector_filter,data.frame("Secteurs.d.activités.définies.par.l.association"= "Autres","Tot_Subv"=0,"proportion_sector"=1-sum(db_sector_filter$proportion_sector)))
+## Ratio
+printRatioData = data.frame(nbestRatio$ratio)
+printRatioData <- t(printRatioData)
+colnames(printRatioData) <- as.vector(nbestRatio$Direction)
+printRatioData <- data.frame(printRatioData)
+rownames(printRatioData) <- c()
+printRatioData <- rbind(rep(1,nb), rep(0,nb), printRatioData)
 
-db_sector_pie$data_labeli <- scales::percent(db_sector_pie$proportion_sector)
+# Print charts
+radarchart(printAcceptData, axistype=1,
+           pcol=rgb(0.2,0.5,0.5,0.9) , pfcol=rgb(0.2,0.5,0.5,0.5) , plwd=4 , 
+           cglcol="grey", cglty=1, axislabcol="grey", caxislabels=seq(0,maxAccept,maxAccept/4), cglwd=0.8,
+           vlcex=0.8, title="Directions ayant accordé le plus de subventions"
+)
+legend(x=-1.2, y=-1.10, legend = "#Subventions", bty = "n", pch=20 , col=rgb(0.2,0.5,0.5,0.5) , text.col = "black", cex=1, pt.cex=3)
+
+radarchart(printRefuseData, axistype=1,
+           pcol=rgb(0.2,0.5,0.5,0.9) , pfcol=rgb(0.2,0.5,0.5,0.5) , plwd=4 , 
+           cglcol="grey", cglty=1, axislabcol="grey", caxislabels=seq(0,maxRefuse,maxRefuse/4), cglwd=0.8,
+           vlcex=0.8,  title=("Directions ayant refusé le plus de subventions")
+)
+legend(x=-1.2, y=-1.10, legend = "#Subventions", bty = "n", pch=20 , col=rgb(0.2,0.5,0.5,0.5) , text.col = "black", cex=1, pt.cex=3)
   
-#on construit notre graphe
-ggplot(db_sector_pie)+
-  geom_bar(aes(x="", y=proportion_sector, fill=Secteurs.d.activités.définies.par.l.association), width = 1, stat = "identity")+ coord_polar("y") +
-  theme_void() + geom_text(aes(x= 1, y=proportion_sector, label = data_labeli), position=position_stack(vjust=0),size=4)
-                                             
-db_sector_pie %>% ggplot(aes(x=1, y=proportion_sector, fill=Secteurs.d.activités.définies.par.l.association)) +
-  geom_col() +
-  geom_text(aes(x=1.3,label=data_labeli), position=position_stack(vjust = 0.5), size=3) +
-  coord_polar(theta = "y") + scale_fill_brewer(palette="Paired",name="Secteur d'activité")+ 
-  theme(axis.text.x=element_blank(),axis.text.y=element_blank(),axis.ticks.y=element_blank(),  axis.title.x = element_blank(),axis.title.y = element_blank())+ labs(title="Proportion des différents secteurs d'activités dans le montant total des subventions versés")
+# Non utilisé à l'heure actuelle dans le rapport
+radarchart(printRatioData, axistype=1,
+           pcol=rgb(0.2,0.5,0.5,0.9) , pfcol=rgb(0.2,0.5,0.5,0.5) , plwd=4 , 
+           cglcol="grey", cglty=1, axislabcol="grey", caxislabels=seq(0,20,5), cglwd=0.8,
+           vlcex=0.8,  title=("Directions ayant accordé (en %) le plus de subventions entre 2013 et 2018")
+)
+legend(x=-1.7, y=-1.10, legend = "% subventions accordées", bty = "n", pch=20 , col=rgb(0.2,0.5,0.5,0.5) , text.col = "black", cex=1, pt.cex=3)
+
+
