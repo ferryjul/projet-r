@@ -35,7 +35,7 @@ ggplot(data = dbCountSummaryMontant, aes(x=factor(Publication), y = montantTot, 
   scale_color_discrete(name="")  +
   theme(legend.position = "bottom", legend.direction = "horizontal",legend.background = element_rect(fill="lightgray"), legend.key = element_rect(fill="black", color = NA),
         plot.title= element_text(hjust = 0.5), plot.subtitle = element_text(hjust = 0.5)) +
-  xlab("Année du Compte Administratif") + ylab("Montant total des subventions (euros)")# + labs(title = "Evolution des subventions à Paris", subtitle = "Toutes natures juridiques")#+ theme(legend.position = "none") # ou dodge pour côte à côte 
+  xlab("Année du Compte Administratif") + ylab("Montant total des subventions (euros)") + labs(title = "Evolution des subventions à Paris", subtitle = "Toutes natures juridiques")#+ theme(legend.position = "none") # ou dodge pour côte à côte 
 dbCountSummaryMontant <- dbCountSummaryMontant[which(dbCountSummaryMontant$Nature.juridique != "Associations"),]
 dbCountSummaryMontant <- dbCountSummaryMontant[which(dbCountSummaryMontant$Nature.juridique != "Etablissements publics"),]
 dbCountSummaryMontant <- dbCountSummaryMontant[which(dbCountSummaryMontant$Nature.juridique != "Entreprise"),]
@@ -43,3 +43,4 @@ ggplot(data = dbCountSummaryMontant, aes(x=factor(Publication), y = montantTot, 
   scale_color_discrete(name="Nature juridique")  + theme(legend.position = "bottom", legend.direction = "horizontal",legend.background = element_rect(fill="lightgray"), legend.key = element_rect(fill="black", color = NA),
         plot.title= element_text(hjust = 0.5), plot.subtitle = element_text(hjust = 0.5)) +
   xlab("Année du Compte Administratif") + ylab("Montant total des subventions (k€)") + labs(title = "Evolution des subventions à Paris", subtitle = "Hors associations, entreprises et établissements publics")#+ theme(legend.position = "none") # ou dodge pour côte à côte 
+
